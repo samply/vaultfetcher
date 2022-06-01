@@ -11,6 +11,7 @@ RUN apk --no-cache add wget unzip && \
 FROM ubuntu
 
 ARG BW_SERVER=https://pass.verbis.dkfz.de
+ENV BW_SERVER=${BW_SERVER}
 
 #RUN apk --no-cache add bash libc6-compat gcompat
 
