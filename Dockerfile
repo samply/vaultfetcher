@@ -1,21 +1,23 @@
-FROM alpine AS builder
+FROM node AS builder
 
-ARG BW_VERSION=1.22.1
+#TODO: Use fixed version once this is supported by https://github.com/bitwarden/clients
 
-RUN apk --no-cache add wget unzip && \
-    wget https://github.com/bitwarden/cli/releases/download/v$BW_VERSION/bw-linux-$BW_VERSION.zip -nv -O /tmp/bw.zip && \
-    cd /tmp && \
-    unzip bw.zip && \
-    chmod +x bw
+RUN	npm install -g pkg
+
+RUN	git clone --single-branch --recurse-submodules https://github.com/bitwarden/clients
+
+RUN	cd clients/apps/cli && \
+	npm ci && \
+	npm run build:prod && npm run clean && \
+	pkg . --targets linux --output /bw && \
+	chmod +x /bw
 
 FROM ubuntu
 
 ARG BW_SERVER=https://pass.verbis.dkfz.de
 ENV BW_SERVER=${BW_SERVER}
 
-#RUN apk --no-cache add bash libc6-compat gcompat
-
-COPY --from=builder /tmp/bw /usr/bin/
+COPY --from=builder /bw /usr/bin/
 
 RUN bw config server $BW_SERVER
 
