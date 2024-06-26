@@ -1,22 +1,19 @@
-FROM alpine AS builder
+FROM debian AS builder
 
-ARG BW_VERSION=1.22.1
+ADD https://vault.bitwarden.com/download/?app=cli&platform=linux /tmp/bw.zip
 
-RUN apk --no-cache add wget unzip && \
-    wget https://github.com/bitwarden/cli/releases/download/v$BW_VERSION/bw-linux-$BW_VERSION.zip -nv -O /tmp/bw.zip && \
-    cd /tmp && \
-    unzip bw.zip && \
-    chmod +x bw
 
-FROM ubuntu
+ADD https://releases.hashicorp.com/vault/1.17.0/vault_1.17.0_linux_amd64.zip /tmp/vault.zip
 
-ARG BW_SERVER=https://pass.verbis.dkfz.de
+RUN apt-get update && apt-get -y install unzip && \
+    unzip -d /usr/local/bin /tmp/bw.zip && \
+	unzip -d /usr/local/bin /tmp/vault.zip && \
+    chmod +x /usr/local/bin/*
 
-#RUN apk --no-cache add bash libc6-compat gcompat
+FROM debian
 
-COPY --from=builder /tmp/bw /usr/bin/
-
-RUN bw config server $BW_SERVER
+COPY --from=builder /usr/local/bin/bw /usr/local/bin/
+COPY --from=builder /usr/local/bin/vault /usr/local/bin/
 
 ADD *.sh /
 
