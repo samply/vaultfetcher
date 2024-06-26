@@ -1,25 +1,19 @@
-FROM node AS builder
+FROM debian AS builder
 
-#TODO: Use fixed version once this is supported by https://github.com/bitwarden/clients
+ADD https://vault.bitwarden.com/download/?app=cli&platform=linux /tmp/bw.zip
 
-RUN	npm install -g pkg
 
-RUN	git clone --single-branch --recurse-submodules https://github.com/bitwarden/clients
+ADD https://releases.hashicorp.com/vault/1.17.0/vault_1.17.0_linux_amd64.zip /tmp/vault.zip
 
-RUN	cd clients/apps/cli && \
-	npm ci && \
-	npm run build:prod && npm run clean && \
-	pkg . --targets linux --output /bw && \
-	chmod +x /bw
+RUN apt-get update && apt-get -y install unzip && \
+    unzip -d /usr/local/bin /tmp/bw.zip && \
+	unzip -d /usr/local/bin /tmp/vault.zip && \
+    chmod +x /usr/local/bin/*
 
-FROM ubuntu
+FROM debian
 
-ARG BW_SERVER=https://pass.verbis.dkfz.de
-ENV BW_SERVER=${BW_SERVER}
-
-COPY --from=builder /bw /usr/bin/
-
-RUN bw config server $BW_SERVER
+COPY --from=builder /usr/local/bin/bw /usr/local/bin/
+COPY --from=builder /usr/local/bin/vault /usr/local/bin/
 
 ADD *.sh /
 
