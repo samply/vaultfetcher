@@ -14,6 +14,10 @@ bw_logout(){
 	bw logout --raw
 }
 
+vault_sealstatus() {
+	curl -s ${VAULT_ADDR}/v1/sys/seal-status | jq '.sealed'
+}
+
 case "$1" in
 	getPasswordsAsExport)
 		shift
@@ -50,12 +54,41 @@ case "$1" in
 
 		export VAULT_ADDR=http://vault:8200
 
-		while ! vault operator unseal "${UNSEAL_KEY}"; do
-			echo "Failed to unlock vault. Retrying in 1 second."
-			sleep 1
+		WAITING=1
+		while [ $WAITING -eq 1 ]; do
+			case "$(vault_sealstatus)" in
+				true)
+					echo "Vault is online and sealed. Unsealing Vault ..."
+					WAITING=0
+					;;
+				false)
+					echo "Vault is already unlocked."
+					WAITING=0
+					;;
+				*)
+					echo "Vault is not online yet -- waiting ..."
+					sleep 1
+					;;
+			esac
 		done
 
-		echo "Unlocked vault with error code $?. This container will stay active to keep the stack from quitting."
+		if [ "$(vault_sealstatus)" == "true" ]; then
+			RUNNING=1
+			while [ $RUNNING -eq 1 ]; do
+				RES=$(curl -s \
+					--request POST \
+					--data "{ \"key\": \"${UNSEAL_KEY}\" }" \
+					${VAULT_ADDR}/v1/sys/unseal)
+				if [ "$(echo "$RES" | grep sealed | grep false)" != "" ]; then
+					RUNNING=0
+				else
+					echo "Failed to unlock vault. Retrying in 1 second."
+					sleep 1
+				fi
+			done
+		fi
+
+		echo "Vault is unlocked. This container will stay active to keep the stack from quitting."
 		sleep infinity
 		;;
 
