@@ -1,6 +1,3 @@
-### This file provides a template for creating a GitHub Actions Workflow,
-### that implements ci for a Docker Image.
-
 name: Docker CI
 
 on:
@@ -26,18 +23,22 @@ jobs:
     with:
       # The Docker Hub Repository you want eventually push to, e.g samply/share-client
       image-name: "samply/bridgehead-vaultfetcher"
+      # Where to push your images ("dockerhub", "ghcr", "both" or "none")
+      push-to: dockerhub
       # Define special prefixes for docker tags. They will prefix each images tag.
       # image-tag-prefix: "foo"
       # Define the build context of your image, typically default '.' will be enough
       # build-context: '.'
       # Define the Dockerfile of your image, typically default './Dockerfile' will be enough
       # build-file: './Dockerfile'
+      # NOTE: This doesn't work currently
       # A list of build arguments, passed to the docker build
       # build-args: |
       #   foo: bar
       # Define the target platforms of the docker build (default "linux/amd64,linux/arm64/v8")
-      # build-platforms: "linux/amd64,linux/arm64/v8"
+      # build-platforms: "linux/amd64"
       # If your actions generate an artifact in a previous build step, you can tell this workflow to download it
+      # '*' will download all artifacts to subdirectories.
       # artifact-name: '' # the default '' doesn't try to download an artifact
     # This passes the secrets from calling workflow to the called workflow
     secrets:
