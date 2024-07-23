@@ -1,10 +1,13 @@
-FROM ubuntu AS builder
+FROM rust AS builder
 
-ADD https://vault.bitwarden.com/download/?app=cli&platform=linux /tmp/bw.zip
+RUN echo '[profile.release]\n\
+lto = true\n\
+codegen-units = 1\n\
+panic = "abort"\n\
+strip = true' > $CARGO_HOME/config.toml
 
-RUN apt-get update && apt-get -y install unzip && \
-    unzip -d /usr/local/bin /tmp/bw.zip && \
-    chmod +x /usr/local/bin/*
+RUN cargo install rbw && \
+    mv $CARGO_HOME/bin/rbw $CARGO_HOME/bin/rbw-agent /
 
 FROM ubuntu
 
@@ -12,7 +15,7 @@ RUN apt-get update && \
     apt-get -y install jq curl && \
     rm -rf /var/lib/apt/lists
 
-COPY --from=builder /usr/local/bin/bw /usr/local/bin/
+COPY --from=builder /rbw /rbw-agent /usr/local/bin/
 
 ADD *.sh /
 

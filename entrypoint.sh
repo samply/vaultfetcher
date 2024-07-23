@@ -1,18 +1,25 @@
 #!/bin/bash -e
 
-MAND_VARS="BW_MASTERPASS BW_CLIENTID BW_CLIENTSECRET BW_SERVER"
+MAND_VARS="BW_MASTERPASS BW_EMAIL BW_SERVER"
 
 source ./checkMandVars.sh
 
+export PIN=$(mktemp)
+
 bw_login() {
-	bw config server ${BW_SERVER}
-	bw login --apikey --raw
-	read BW_SESSION < <(bw unlock --passwordenv BW_MASTERPASS --raw)
-	export BW_SESSION
+	cat <<EOF > ${PIN}
+#!/bin/sh
+
+echo "D ${BW_MASTERPASS}"
+EOF
+	chmod +x $PIN
+	rbw config set base_url ${BW_SERVER}
+	rbw config set email ${BW_EMAIL}
+	rbw config set pinentry ${PIN}
 }
 
 bw_logout(){
-	bw logout --raw
+	rbw stop-agent
 }
 
 vault_sealstatus() {
@@ -31,7 +38,7 @@ case "$1" in
 		RESULT="\n"
 
 		while (( "$#" )); do
-			read PASS < <(bw get password $1)
+			read PASS < <(rbw get password $1)
 			if [ -z "$PASS" ]; then
 				echo "ERROR: Password $1 not found in vault. Exiting ..."
 				exit 1
@@ -49,7 +56,7 @@ case "$1" in
 		shift
 		bw_login
 		echo "Getting unseal key ..."
-		read UNSEAL_KEY < <(bw get password "Vault Unseal Key")
+		read UNSEAL_KEY < <(rbw get "Vault Unseal Key")
 		echo "Got unseal key."
 		bw_logout
 
@@ -90,7 +97,7 @@ case "$1" in
 		fi
 
 		echo "Vault is unlocked. This container will stay active to keep the stack from quitting."
-		sleep infinity
+		exec sleep infinity
 		;;
 
 	*)
