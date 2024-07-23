@@ -7,7 +7,8 @@ source ./checkMandVars.sh
 bw_login() {
 	bw config server ${BW_SERVER}
 	bw login --apikey --raw
-	export BW_SESSION=$(bw unlock --passwordenv BW_MASTERPASS --raw)
+	read BW_SESSION < <(bw unlock --passwordenv BW_MASTERPASS --raw)
+	export BW_SESSION
 }
 
 bw_logout(){
@@ -30,7 +31,7 @@ case "$1" in
 		RESULT="\n"
 
 		while (( "$#" )); do
-			PASS="$(bw get password $1)"
+			read PASS < <(bw get password $1)
 			if [ -z "$PASS" ]; then
 				echo "ERROR: Password $1 not found in vault. Exiting ..."
 				exit 1
@@ -48,7 +49,7 @@ case "$1" in
 		shift
 		bw_login
 		echo "Getting unseal key ..."
-		UNSEAL_KEY="$(bw get password "Vault Unseal Key")"
+		read UNSEAL_KEY < <(bw get password "Vault Unseal Key")
 		echo "Got unseal key."
 		bw_logout
 
