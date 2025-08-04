@@ -2,6 +2,8 @@
 
 MAND_VARS="BW_MASTERPASS BW_EMAIL BW_SERVER"
 
+export VAULT_ADDR=http://vault:8200
+
 source ./checkMandVars.sh
 
 export PIN=$(mktemp)
@@ -54,13 +56,6 @@ case "$1" in
 
 	unsealVault)
 		shift
-		bw_login
-		echo "Getting unseal key ..."
-		read UNSEAL_KEY < <(rbw get "Vault Unseal Key")
-		echo "Got unseal key."
-		bw_logout
-
-		export VAULT_ADDR=http://vault:8200
 
 		WAITING=1
 		while [ $WAITING -eq 1 ]; do
@@ -81,6 +76,11 @@ case "$1" in
 		done
 
 		if [ "$(vault_sealstatus)" == "true" ]; then
+			bw_login
+			echo "Getting unseal key ..."
+			read UNSEAL_KEY < <(rbw get "Vault Unseal Key")
+			echo "Got unseal key."
+			bw_logout
 			RUNNING=1
 			while [ $RUNNING -eq 1 ]; do
 				RES=$(curl -s \
@@ -96,8 +96,12 @@ case "$1" in
 			done
 		fi
 
-		echo "Vault is unlocked. This container will stay active to keep the stack from quitting."
-		exec sleep infinity
+		if [ "${QUIT:-0}" == "1" ]; then
+			echo "Vault is unlocked. Exiting as QUIT=1."
+		else
+			echo "Vault is unlocked. This container will stay active to keep the stack from quitting."
+			exec sleep infinity
+		fi
 		;;
 
 	*)
