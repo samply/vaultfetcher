@@ -8,6 +8,25 @@ source ./checkMandVars.sh
 
 export PIN=$(mktemp)
 
+for v in http_proxy HTTP_PROXY https_proxy HTTPS_PROXY; do
+  [ -n "${!v}" ] && export http_proxy="${!v}" && break
+done
+
+if [ -n "$http_proxy" ]; then
+  hostport="${url#*://}"
+cat <<EOF > /etc/proxychains.conf
+strict_chain
+proxy_dns
+
+tcp_read_time_out 15000
+tcp_connect_time_out 8000
+
+[ProxyList]
+http ${hostport/:/ }
+EOF
+  alias rbw='proxychains rbw'
+fi
+
 bw_login() {
 	cat <<EOF > ${PIN}
 #!/bin/sh
