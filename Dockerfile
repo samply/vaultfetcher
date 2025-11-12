@@ -12,10 +12,10 @@ RUN cargo install rbw && \
 FROM ubuntu
 
 RUN apt-get update && \
-    apt-get -y install jq curl && \
+    apt-get -y install jq curl proxychains && \
     rm -rf /var/lib/apt/lists
 
-COPY --from=builder /rbw /rbw-agent /usr/local/bin/
+COPY --from=builder /rbw /rbw-agent /usr/bin/
 
 ADD *.sh /
 

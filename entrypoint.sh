@@ -8,6 +8,29 @@ source ./checkMandVars.sh
 
 export PIN=$(mktemp)
 
+for v in http_proxy HTTP_PROXY https_proxy HTTPS_PROXY; do
+  [ -n "${!v}" ] && export http_proxy="${!v}" && break
+done
+
+if [ -n "$http_proxy" ]; then
+  hostport="${http_proxy#*://}"
+  host="${hostport%%:*}"
+  port="${hostport##*:}"
+  ip="$(getent hosts $host | awk '{print $1}')"
+  echo "Setting up http proxy $http_proxy ($ip $port)"
+cat <<EOF > /etc/proxychains.conf
+strict_chain
+#proxy_dns
+quiet_mode
+
+tcp_read_time_out 15000
+tcp_connect_time_out 8000
+
+[ProxyList]
+http $ip $port
+EOF
+fi
+
 bw_login() {
 	cat <<EOF > ${PIN}
 #!/bin/sh
@@ -40,7 +63,11 @@ case "$1" in
 		RESULT="\n"
 
 		while (( "$#" )); do
-			read PASS < <(rbw get password $1)
+			if [[ -n "${http_proxy:-}" ]]; then
+				read PASS < <(proxychains rbw get password $1 | grep -v -- '^ProxyChains-')
+			else
+				read PASS < <(rbw get password $1)
+			fi
 			if [ -z "$PASS" ]; then
 				echo "ERROR: Password $1 not found in vault. Exiting ..."
 				exit 1
@@ -78,7 +105,11 @@ case "$1" in
 		if [ "$(vault_sealstatus)" == "true" ]; then
 			bw_login
 			echo "Getting unseal key ..."
-			read UNSEAL_KEY < <(rbw get "Vault Unseal Key")
+                        if [[ -n "${http_proxy:-}" ]]; then
+				read UNSEAL_KEY < <(proxychains rbw get "Vault Unseal Key" | grep -v -- '^ProxyChains-')
+                        else
+				read UNSEAL_KEY < <(rbw get "Vault Unseal Key")
+                        fi
 			echo "Got unseal key."
 			bw_logout
 			RUNNING=1
