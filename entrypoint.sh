@@ -78,7 +78,16 @@ case "$1" in
 		if [ "$(vault_sealstatus)" == "true" ]; then
 			bw_login
 			echo "Getting unseal key ..."
-			read UNSEAL_KEY < <(rbw get "Vault Unseal Key")
+			WAITING=1
+			while [ $WAITING -eq 1 ]; do
+				if [ $? -eq 0 ]; then
+					read UNSEAL_KEY < <(rbw get "Vault Unseal Key")
+					WAITING=0
+				else
+				  echo "Waiting for vaultwarden to be reachable ..."
+				  sleep 3
+				fi
+			done
 			echo "Got unseal key."
 			bw_logout
 			RUNNING=1
