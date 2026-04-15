@@ -57,18 +57,21 @@ case "$1" in
 	unsealVault)
 		shift
 
+		UNSEAL_RETRY=0
 		while true; do
+			UNSEAL_RETRY=$(( UNSEAL_RETRY + 1 ))
+			echo "Attempt ${UNSEAL_RETRY}: Checking vault status ..."
 			case "$(vault_sealstatus)" in
 				true)
-					echo "Vault is online and sealed. Unsealing Vault ..."
+					echo "Attempt ${UNSEAL_RETRY}: Vault is online and sealed. Unsealing Vault ..."
 					break
 					;;
 				false)
-					echo "Vault is already unlocked."
+					echo "Attempt ${UNSEAL_RETRY}: Vault is already unlocked."
 					break
 					;;
 				*)
-					echo "Vault is not online yet -- waiting ..."
+					echo "Attempt ${UNSEAL_RETRY}: Vault is not online yet -- waiting ..."
 					sleep 1
 					;;
 			esac
@@ -83,15 +86,19 @@ case "$1" in
 			done
 			echo "Got unseal key."
 			bw_stopagent
+			UNSEAL_RETRY=0
 			while true; do
+				UNSEAL_RETRY=$(( UNSEAL_RETRY + 1 ))
+				echo "Attempt ${UNSEAL_RETRY}: Unsealing vault ..."
 				RES=$(curl -s \
 					--request POST \
 					--data "{ \"key\": \"${UNSEAL_KEY}\" }" \
 					${VAULT_ADDR}/v1/sys/unseal)
 				if [ "$(echo "$RES" | grep sealed | grep false)" != "" ]; then
+					echo "Attempt ${UNSEAL_RETRY}: Vault unsealed successfully."
 					break
 				else
-					echo "Failed to unlock vault. Retrying in 1 second."
+					echo "Attempt ${UNSEAL_RETRY}: Failed to unlock vault. Retrying in 1 second."
 					sleep 1
 				fi
 			done
