@@ -1,21 +1,6 @@
-FROM rust AS builder
+FROM alpine
 
-RUN echo '[profile.release]\n\
-lto = true\n\
-codegen-units = 1\n\
-panic = "abort"\n\
-strip = true' > $CARGO_HOME/config.toml
-
-RUN cargo install rbw && \
-    mv $CARGO_HOME/bin/rbw $CARGO_HOME/bin/rbw-agent /
-
-FROM ubuntu
-
-RUN apt-get update && \
-    apt-get -y install jq curl && \
-    rm -rf /var/lib/apt/lists
-
-COPY --from=builder /rbw /rbw-agent /usr/local/bin/
+RUN apk --no-cache add jq curl bash rbw
 
 ADD *.sh /
 
