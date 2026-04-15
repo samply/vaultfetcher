@@ -8,7 +8,7 @@ source ./checkMandVars.sh
 
 export PIN=$(mktemp)
 
-bw_login() {
+bw_setconfig() {
 	cat <<EOF > ${PIN}
 #!/bin/sh
 
@@ -20,7 +20,7 @@ EOF
 	rbw config set pinentry ${PIN}
 }
 
-bw_logout(){
+bw_stopagent(){
 	rbw stop-agent
 }
 
@@ -36,7 +36,7 @@ case "$1" in
 			exit 1
 		fi
 
-		bw_login
+		bw_setconfig
 		RESULT="\n"
 
 		while (( "$#" )); do
@@ -51,22 +51,21 @@ case "$1" in
 
 		echo -e "$RESULT"
 
-		bw_logout
+		bw_stopagent
 		;;
 
 	unsealVault)
 		shift
 
-		WAITING=1
-		while [ $WAITING -eq 1 ]; do
+		while true; do
 			case "$(vault_sealstatus)" in
 				true)
 					echo "Vault is online and sealed. Unsealing Vault ..."
-					WAITING=0
+					break
 					;;
 				false)
 					echo "Vault is already unlocked."
-					WAITING=0
+					break
 					;;
 				*)
 					echo "Vault is not online yet -- waiting ..."
@@ -76,28 +75,21 @@ case "$1" in
 		done
 
 		if [ "$(vault_sealstatus)" == "true" ]; then
-			bw_login
+			bw_setconfig
 			echo "Getting unseal key ..."
-			WAITING=1
-			while [ $WAITING -eq 1 ]; do
-				if [ $? -eq 0 ]; then
-					read UNSEAL_KEY < <(rbw get "Vault Unseal Key")
-					WAITING=0
-				else
-				  echo "Waiting for vaultwarden to be reachable ..."
-				  sleep 3
-				fi
+			until read UNSEAL_KEY < <(rbw get "Vault Unseal Key"); do
+				echo "Waiting for vaultwarden to be reachable ..."
+				sleep 3
 			done
 			echo "Got unseal key."
-			bw_logout
-			RUNNING=1
-			while [ $RUNNING -eq 1 ]; do
+			bw_stopagent
+			while true; do
 				RES=$(curl -s \
 					--request POST \
 					--data "{ \"key\": \"${UNSEAL_KEY}\" }" \
 					${VAULT_ADDR}/v1/sys/unseal)
 				if [ "$(echo "$RES" | grep sealed | grep false)" != "" ]; then
-					RUNNING=0
+					break
 				else
 					echo "Failed to unlock vault. Retrying in 1 second."
 					sleep 1
