@@ -6,6 +6,8 @@ export VAULT_ADDR=http://vault:8200
 
 source ./checkMandVars.sh
 
+trap 'echo "SIGTERM received, exiting..."; kill -- -$$ 2>/dev/null; exit 143' TERM
+
 export PIN=$(mktemp)
 
 bw_setconfig() {
