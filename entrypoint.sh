@@ -79,14 +79,16 @@ case "$1" in
 			esac
 		done
 
+		UNSEAL_RETRY=0
 		if [ "$(vault_sealstatus)" == "true" ]; then
 			bw_setconfig
 			echo "Getting unseal key ..."
 			until read UNSEAL_KEY < <(rbw get "Vault Unseal Key"); do
-				echo "Waiting for vaultwarden to be reachable ..."
+				UNSEAL_RETRY=$(( UNSEAL_RETRY + 1 ))
+				echo "Attempt ${UNSEAL_RETRY}: Waiting for vaultwarden to be reachable ..."
 				sleep 3
 			done
-			echo "Got unseal key."
+			echo "Attempt ${UNSEAL_RETRY}: Got unseal key."
 			bw_stopagent
 			UNSEAL_RETRY=0
 			while true; do
