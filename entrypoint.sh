@@ -8,6 +8,8 @@ source ./checkMandVars.sh
 
 trap 'echo "SIGTERM received, exiting..."; kill -- -$$ 2>/dev/null; exit 143' TERM
 
+set -x
+
 export PIN=$(mktemp)
 
 bw_setconfig() {
