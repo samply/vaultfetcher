@@ -6,9 +6,11 @@ export VAULT_ADDR=http://vault:8200
 
 source ./checkMandVars.sh
 
+trap 'echo "SIGTERM received, exiting..."; kill -- -$$ 2>/dev/null; exit 143' TERM
+
 export PIN=$(mktemp)
 
-bw_login() {
+bw_setconfig() {
 	cat <<EOF > ${PIN}
 #!/bin/sh
 
@@ -20,7 +22,7 @@ EOF
 	rbw config set pinentry ${PIN}
 }
 
-bw_logout(){
+bw_stopagent(){
 	rbw stop-agent
 }
 
@@ -36,7 +38,7 @@ case "$1" in
 			exit 1
 		fi
 
-		bw_login
+		bw_setconfig
 		RESULT="\n"
 
 		while (( "$#" )); do
@@ -51,46 +53,56 @@ case "$1" in
 
 		echo -e "$RESULT"
 
-		bw_logout
+		bw_stopagent
 		;;
 
 	unsealVault)
 		shift
 
-		WAITING=1
-		while [ $WAITING -eq 1 ]; do
+		UNSEAL_RETRY=0
+		while true; do
+			UNSEAL_RETRY=$(( UNSEAL_RETRY + 1 ))
+			echo "Attempt ${UNSEAL_RETRY}: Checking vault status ..."
 			case "$(vault_sealstatus)" in
 				true)
-					echo "Vault is online and sealed. Unsealing Vault ..."
-					WAITING=0
+					echo "Attempt ${UNSEAL_RETRY}: Vault is online and sealed. Unsealing Vault ..."
+					break
 					;;
 				false)
-					echo "Vault is already unlocked."
-					WAITING=0
+					echo "Attempt ${UNSEAL_RETRY}: Vault is already unlocked."
+					break
 					;;
 				*)
-					echo "Vault is not online yet -- waiting ..."
+					echo "Attempt ${UNSEAL_RETRY}: Vault is not online yet -- waiting ..."
 					sleep 1
 					;;
 			esac
 		done
 
+		UNSEAL_RETRY=0
 		if [ "$(vault_sealstatus)" == "true" ]; then
-			bw_login
+			bw_setconfig
 			echo "Getting unseal key ..."
-			read UNSEAL_KEY < <(rbw get "Vault Unseal Key")
-			echo "Got unseal key."
-			bw_logout
-			RUNNING=1
-			while [ $RUNNING -eq 1 ]; do
+			until read UNSEAL_KEY < <(rbw get "Vault Unseal Key"); do
+				UNSEAL_RETRY=$(( UNSEAL_RETRY + 1 ))
+				echo "Attempt ${UNSEAL_RETRY}: Waiting for vaultwarden to be reachable ..."
+				sleep 3
+			done
+			echo "Attempt ${UNSEAL_RETRY}: Got unseal key."
+			bw_stopagent
+			UNSEAL_RETRY=0
+			while true; do
+				UNSEAL_RETRY=$(( UNSEAL_RETRY + 1 ))
+				echo "Attempt ${UNSEAL_RETRY}: Unsealing vault ..."
 				RES=$(curl -s \
 					--request POST \
 					--data "{ \"key\": \"${UNSEAL_KEY}\" }" \
 					${VAULT_ADDR}/v1/sys/unseal)
 				if [ "$(echo "$RES" | grep sealed | grep false)" != "" ]; then
-					RUNNING=0
+					echo "Attempt ${UNSEAL_RETRY}: Vault unsealed successfully."
+					break
 				else
-					echo "Failed to unlock vault. Retrying in 1 second."
+					echo "Attempt ${UNSEAL_RETRY}: Failed to unlock vault. Retrying in 1 second."
 					sleep 1
 				fi
 			done
